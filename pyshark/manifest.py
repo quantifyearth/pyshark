@@ -6,6 +6,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Any,Dict
 
+import git
+
 class Manifest:
 	def __init__(self):
 		self.start = datetime.now(timezone.utc)
@@ -26,7 +28,7 @@ class Manifest:
 		}
 
 	@staticmethod
-	def get_platform() -> Dict[str,Any]:
+	def get_platform() -> Dict[str,str]:
 		uname = platform.uname()
 		return {
 			"system": uname.system,
@@ -36,6 +38,23 @@ class Manifest:
 			"processor": uname.processor,
 		}
 
+	@staticmethod
+	def get_git_status() -> Dict[str,Any]:
+		try:
+			repo = git.Repo(search_parent_directories=True)
+		except git.exc.InvalidgitRepository:
+			return {"error": "no git repository found"}
+		return {
+			"branch": repo.active_branch.name,
+			"commit": repo.head.object.hexsha,
+			"dirty": repo.is_dirty(),
+			"remotes": {
+					r.name: [url for url in r.urls]
+				for r in repo.remotes
+			}
+		}
+
+
 	def save(self, filename: str) -> None:
 		document = {
 			"start": self.start.isoformat(),
@@ -43,7 +62,7 @@ class Manifest:
 			# "env": dict(os.environ),
 			"inputs": list(self.inputs),
 			"outputs": list(self.outputs),
-			"git": {},
+			"git": self.get_git_status(),
 			"uname": self.get_platform(),
 			"python": self.get_python_env(),
 		}
