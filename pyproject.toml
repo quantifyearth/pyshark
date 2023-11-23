@@ -1,0 +1,30 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shark"
+version = "0.0.1"
+description = "Shark utils package"
+readme = "README.md"
+authors = [{ name = "Michael Dales", email = "mwd24@cam.ac.uk" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: ISC License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = []
+dependencies = []
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = ["mypy", "pylint", "pytest"]
+
+[project.urls]
+Homepage = "https://github.com/quantifyearth/pyshark"
+
+[project.scripts]
+realpython = "reader.__main__:main"
