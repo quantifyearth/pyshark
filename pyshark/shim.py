@@ -42,10 +42,10 @@ def load_yirgacheffe_shim() -> None:
         from yirgacheffe.layers import RasterLayer, VectorLayer
     except ImportError:
         return
-    RasterLayer.layer_from_file = read_file_shim(RasterLayer.layer_from_file, 1)
-    VectorLayer.layer_from_file = read_file_shim(VectorLayer.layer_from_file, 1)
-    RasterLayer.empty_raster_layer = yirgacheffe_write_file_shim(RasterLayer.empy_raster_layer)
-    RasterLayer.empty_raster_layer_like = yirgacheffe_write_file_shim(RasterLayer.empy_raster_layer_like)
+    RasterLayer.layer_from_file = read_file_shim(RasterLayer.layer_from_file)
+    VectorLayer.layer_from_file = read_file_shim(VectorLayer.layer_from_file)
+    RasterLayer.empty_raster_layer = yirgacheffe_write_file_shim(RasterLayer.empty_raster_layer)
+    RasterLayer.empty_raster_layer_like = yirgacheffe_write_file_shim(RasterLayer.empty_raster_layer_like)
 
 def python_open_shim(original_method):
     def python_open(*args, **kwargs):

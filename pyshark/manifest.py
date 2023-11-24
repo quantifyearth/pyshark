@@ -1,4 +1,5 @@
 import json
+import os
 import platform
 import sys
 from datetime import datetime, timezone
@@ -53,12 +54,18 @@ class Manifest:
             }
         }
 
+    @staticmethod
+    def get_context() -> Dict[str,str]:
+        return {
+            "user": os.environ.get("USER", "unknown"),
+            "host": platform.uname().node,
+        }
 
     def save(self, filename: str) -> None:
         document = {
             "start": self.start.isoformat(),
             "end": datetime.now(timezone.utc).isoformat(),
-            # "env": dict(os.environ),
+            "env": self.get_context(),
             "inputs": list(self.inputs),
             "outputs": list(self.outputs),
             "git": self.get_git_status(),
