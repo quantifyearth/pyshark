@@ -13,7 +13,7 @@ except DistributionNotFound:
     pass  # package is not installed
 
 def shark_exit_handler(_sig=None, _frame=None):
-    manifest.save(None)
+    manifest.save()
 
 # We need some multiprocessing story at some point, but not for now
 if multiprocessing.parent_process() is None:

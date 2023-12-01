@@ -8,6 +8,7 @@ from typing import Any,Dict
 
 import git
 import pkg_resources
+import xattr
 
 class Manifest:
     def __init__(self):
@@ -23,7 +24,12 @@ class Manifest:
             while chunk := f.read(1024 * hash.block_size):
                 hash.update(chunk)
 
-        self.inputs.append({'path': filename, 'sha': hash.hexdigest()})
+        info = {'path': filename, 'sha': hash.hexdigest()}
+        xattr_info = xattr.xattr(filename)
+        if 'user.shark' in xattr_info:
+            info['history'] = xattr_info['user.shark']
+
+        self.inputs.append(info)
 
     def append_output(self, filename: str) -> None:
         self.outputs.add(filename)
@@ -69,8 +75,7 @@ class Manifest:
             "host": platform.uname().node,
         }
 
-    def save(self, filename: str) -> None:
-
+    def generate(self) -> Dict:
         # this is unsafe! we don't really know that the files
         # have been flushed (I'm looking at you GDAL!)
         outputhashed = []
@@ -80,7 +85,6 @@ class Manifest:
                 while chunk := f.read(1024 * hash.block_size):
                     hash.update(chunk)
             outputhashed.append({'path': filename, 'sha': hash.hexdigest()})
-
 
         document = {
             "start": self.start.isoformat(),
@@ -92,7 +96,19 @@ class Manifest:
             "uname": self.get_platform(),
             "python": self.get_python_env(),
         }
-        print("Shark manifest:")
-        print(json.dumps(document, indent=4))
+        return document
+
+    def save(self) -> None:
+        if len(self.outputs) < 1:
+            return;
+        manifest = json.dumps(self.generate())
+        for output in self.outputs:
+            try:
+                xattr_info = xattr.xattr(output)
+            except FileNotFoundError:
+                continue
+            xattr_info.update({
+                'user.shark': manifest.encode('utf-8')
+            })
 
 manifest = Manifest()
