@@ -87,6 +87,7 @@ class Manifest:
             outputhashed.append({'path': filename, 'sha': hash.hexdigest()})
 
         document = {
+            "args": sys.argv[1:],
             "start": self.start.isoformat(),
             "end": datetime.now(timezone.utc).isoformat(),
             "env": self.get_context(),
