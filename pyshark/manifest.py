@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import platform
@@ -11,11 +12,18 @@ import pkg_resources
 class Manifest:
     def __init__(self):
         self.start = datetime.now(timezone.utc)
-        self.inputs = set()
+        self.inputs = []
         self.outputs = set()
 
     def append_input(self, filename: str) -> None:
-        self.inputs.add(filename)
+        if filename in [x['path'] for x in self.inputs]:
+            return
+        hash = hashlib.sha1()
+        with self.builtin_open(filename, "rb") as f:
+            while chunk := f.read(1024 * hash.block_size):
+                hash.update(chunk)
+
+        self.inputs.append({'path': filename, 'sha': hash.hexdigest()})
 
     def append_output(self, filename: str) -> None:
         self.outputs.add(filename)
@@ -62,12 +70,24 @@ class Manifest:
         }
 
     def save(self, filename: str) -> None:
+
+        # this is unsafe! we don't really know that the files
+        # have been flushed (I'm looking at you GDAL!)
+        outputhashed = []
+        for filename in self.outputs:
+            hash = hashlib.sha1()
+            with self.builtin_open(filename, "rb") as f:
+                while chunk := f.read(1024 * hash.block_size):
+                    hash.update(chunk)
+            outputhashed.append({'path': filename, 'sha': hash.hexdigest()})
+
+
         document = {
             "start": self.start.isoformat(),
             "end": datetime.now(timezone.utc).isoformat(),
             "env": self.get_context(),
-            "inputs": list(self.inputs),
-            "outputs": list(self.outputs),
+            "inputs": self.inputs,
+            "outputs": outputhashed,
             "git": self.get_git_status(),
             "uname": self.get_platform(),
             "python": self.get_python_env(),

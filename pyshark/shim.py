@@ -1,3 +1,4 @@
+import builtins
 
 from .manifest import manifest
 
@@ -59,10 +60,10 @@ def python_open_shim(original_method):
     return python_open
 
 def load_python_shim() -> None:
-    import builtins
     builtins.open = python_open_shim(builtins.open)
 
 def shark_load_shims() -> None:
+    manifest.builtin_open = builtins.open
     load_pandas_shim()
     load_geopandas_shim()
     load_yirgacheffe_shim()
