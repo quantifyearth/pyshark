@@ -14,6 +14,7 @@ except DistributionNotFound:
 
 def shark_exit_handler(_sig=None, _frame=None):
     manifest.save()
+    manifest.close()
 
 # We need some multiprocessing story at some point, but not for now
 if multiprocessing.parent_process() is None:
