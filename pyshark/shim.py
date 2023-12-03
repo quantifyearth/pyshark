@@ -19,10 +19,10 @@ def load_pandas_shim() -> None:
         import pandas as pd
     except ImportError:
         return
-    pd.read_csv = read_file_shim(pd.read_csv)
-    pd.read_parquet = read_file_shim(pd.read_parquet)
-    pd.DataFrame.to_csv = write_file_shim(pd.DataFrame.to_csv, 1)
-    pd.DataFrame.to_parquet = write_file_shim(pd.DataFrame.to_csv, 1)
+    # pd.read_csv = read_file_shim(pd.read_csv)
+    # pd.read_parquet = read_file_shim(pd.read_parquet)
+    # pd.DataFrame.to_csv = write_file_shim(pd.DataFrame.to_csv, 1)
+    # pd.DataFrame.to_parquet = write_file_shim(pd.DataFrame.to_csv, 1)
 
 def load_geopandas_shim() -> None:
     try:
@@ -63,8 +63,10 @@ def load_python_shim() -> None:
     builtins.open = python_open_shim(builtins.open)
 
 def shark_load_shims() -> None:
+    pass
+    print("hello")
     manifest.builtin_open = builtins.open
-    load_pandas_shim()
-    load_geopandas_shim()
-    load_yirgacheffe_shim()
-    load_python_shim()
+    # load_pandas_shim()
+    # load_geopandas_shim()
+    # load_yirgacheffe_shim()
+    # load_python_shim()

@@ -21,44 +21,51 @@ class Manifest:
         self.outputs = set()
 
         # testing how to sync back and forth with multiprocessing
-        shared_name = os.environ.get("SHARK_SHARED", None)
-        if shared_name is None:
-            self.lock_name = os.path.join("/tmp", "shark.lock")
-            self.manifest_lists = shared_memory.ShareableList([self.lock_name, "[]"] + ([None,] * 500))
-            self.manifest_list_index = 1
-            os.environ["SHARK_SHARED"] = self.manifest_lists.shm.name
-        else:
-            self.manifest_lists = shared_memory.ShareableList(name=shared_name)
-            self.lock_name = self.manifest_lists[0]
-            with locket.lock_file(self.lock_name):
-                for index in range(2, 500):
-                    if self.manifest_lists[index] is None:
-                        self.manifest_list_index = index
-                        self.manifest_lists[index] = "[]"
-                raw_parent_state = self.manifest_lists[1]
-            self.nputs = json.loads(raw_parent_state)
+        # shared_name = os.environ.get("SHARK_SHARED", None)
+        # if shared_name is None:
+        #     self.lock_name = os.path.join("/tmp", "shark.lock")
+        #     self.manifest_lists = shared_memory.ShareableList([self.lock_name, "[]"] + (["",] * 500))
+        #     self.manifest_list_index = 1
+        #     os.environ["SHARK_SHARED"] = self.manifest_lists.shm.name
+        # else:
+        #     self.manifest_lists = shared_memory.ShareableList(name=shared_name)
+        #     self.lock_name = self.manifest_lists[0]
+        #     with locket.lock_file(self.lock_name):
+        #         for index in range(2, 500):
+        #             if self.manifest_lists[index] is None:
+        #                 self.manifest_list_index = index
+        #                 self.manifest_lists[index] = "[]"
+        #         raw_parent_state = self.manifest_lists[1]
+        #     self.nputs = json.loads(raw_parent_state)
 
-        print(self.lock_name)
         # Use this moment to get any info before we shim things
         self.git = Manifest.get_git_status()
 
     def append_input(self, filename: str) -> None:
+        if not isinstance(filename, str):
+            return
         if filename in [x['path'] for x in self.inputs]:
             return
         if filename == self.lock_name:
             return
         hash = hashlib.sha1()
         with self.builtin_open(filename, "rb") as f:
-            while chunk := f.read(1024 * hash.block_size):
-                hash.update(chunk)
+            try:
+                while chunk := f.read(1024 * hash.block_size):
+                    hash.update(chunk)
+                hashdigest = hash.hexdigest()
+            except OSError:
+                print(f"Failed to has {filename}")
+                hashdigest = "unknown"
 
-        info = {'path': filename, 'sha': hash.hexdigest()}
+        info = {'path': filename, 'sha': hashdigest}
         xattr_info = xattr.xattr(filename)
         if 'user.shark' in xattr_info:
             info['history'] = xattr_info['user.shark']
 
         self.inputs.append(info)
         with locket.lock_file(self.lock_name):
+            print(json.dumps(self.inputs))
             self.manifest_lists[self.manifest_list_index] = json.dumps(self.inputs)
 
     def append_output(self, filename: str) -> None:
@@ -137,22 +144,30 @@ class Manifest:
         return document
 
     def save(self) -> None:
-        if len(self.outputs) < 1:
-            return;
-        manifest = json.dumps(self.generate())
-        for output in self.outputs:
-            try:
-                xattr_info = xattr.xattr(output)
-            except FileNotFoundError:
-                continue
-            xattr_info.update({
-                'user.shark': manifest.encode('utf-8')
-            })
+        pass
+        # if len(self.outputs) < 1:
+        #     return;
+        # manifest = json.dumps(self.generate())
+        # for output in self.outputs:
+        #     try:
+        #         xattr_info = xattr.xattr(output)
+        #     except FileNotFoundError:
+        #         continue
+        #     xattr_info.update({
+        #         'user.shark': manifest.encode('utf-8')
+        #     })
 
     def close(self) -> None:
-        self.manifest_lists.shm.close()
-        if parent_process() is None:
-            self.manifest_lists.shm.unlink()
+        pass
+        # if self.manifest_lists is not None:
+        #     shared_list = self.manifest_lists
+        #     self.manifest_lists = None
+        #     shared_list.shm.close()
+        #     if parent_process() is None:
+        #         try:
+        #             shared_list.shm.unlink()
+        #         except FileNotFoundError:
+        #             pass
 
 
 manifest = Manifest()
