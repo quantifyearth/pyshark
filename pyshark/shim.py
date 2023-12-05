@@ -145,8 +145,31 @@ def process_start_shim(original_method):
         return original_method(*args, **kwargs)
     return shark_start_shim
 
+def process_join_shim(original_method):
+    def shark_join_shim(*args, **kwargs):
+        res = original_method(*args, **kwargs)
+        if parent_process() is None:
+            manifest.parent_flush()
+        return res
+    return shark_join_shim
+
 def load_multiprocesing_process_shim() -> None:
     context.Process.start = process_start_shim(context.Process.start)
+    context.Process.join = process_join_shim(context.Process.join)
+
+def os__exit_shim(original_method) -> None:
+    # This is unfortunate, as _exit is meant to be the
+    # fast track exit don't call anything, but it's also
+    # the way child processes exit
+    def shark__exit(*args, **kwargs):
+        if parent_process() is not None:
+            manifest.save()
+            manifest.close()
+        return original_method(*args, **kwargs)
+    return shark__exit
+
+def load_os__exit_shim() -> None:
+    os._exit = os__exit_shim(os._exit)
 
 def shark_load_shims() -> None:
     manifest.builtin_open = builtins.open
@@ -157,3 +180,4 @@ def shark_load_shims() -> None:
     load_python_shim()
     load_multiprocessing_pool_shim()
     load_multiprocesing_process_shim()
+    load_os__exit_shim()

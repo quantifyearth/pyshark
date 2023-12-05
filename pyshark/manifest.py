@@ -81,12 +81,12 @@ class Manifest:
         info = FileRef(fqname, hashdigest)
         xattr_info = xattr.xattr(fqname)
         if 'user.shark' in xattr_info:
-            info.history = str(xattr_info['user.shark'])
+            info.history = json.loads(xattr_info['user.shark'].decode("utf-8"))
         else:
             sidefilename = Manifest.side_file_name(fqname)
             try:
                 with self.builtin_open(sidefilename, "r") as sidefile:
-                    info.history = sidefile.read()
+                    info.history = json.loads(sidefile.read())
             except OSError:
                 pass
 
