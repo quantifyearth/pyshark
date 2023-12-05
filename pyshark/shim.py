@@ -1,5 +1,5 @@
 import builtins
-import multiprocessing.pool
+from multiprocessing import pool, context, queues, managers, parent_process
 import os
 
 from .manifest import manifest
@@ -98,8 +98,39 @@ def map_shim(original_method):
     return shark_pool_map
 
 def load_multiprocessing_pool_shim() -> None:
-    multiprocessing.pool.worker = map_worker_shim(multiprocessing.pool.worker)
-    multiprocessing.pool.Pool.map = map_shim(multiprocessing.pool.Pool.map)
+    pool.worker = map_worker_shim(pool.worker)
+    pool.Pool.map = map_shim(pool.Pool.map)
+
+def main_process_queue_get_shim(original_method):
+    def shark_main_queue_get(*args, **kwargs):
+        if parent_process() is None:
+            manifest.parent_flush()
+        return original_method(*args, **kwargs)
+    return shark_main_queue_get
+
+def main_process_queue_put_shim(original_method):
+    def shark_main_queue_put(*args, **kwargs):
+        if parent_process() is not None:
+            manifest.child_flush()
+        return original_method(*args, **kwargs)
+    return shark_main_queue_put
+
+def process_start_shim(original_method):
+    def shark_start_shim(*args, **kwargs):
+        caller_args = args[0]._args
+        # now we are post fork in parent - child doesn't
+        # return from this call
+        for arg in caller_args:
+            try:
+                arg.get = main_process_queue_get_shim(arg.get)
+                arg.put = main_process_queue_put_shim(arg.put)
+            except AttributeError:
+                pass
+        return original_method(*args, **kwargs)
+    return shark_start_shim
+
+def load_multiprocesing_process_shim() -> None:
+    context.Process.start = process_start_shim(context.Process.start)
 
 def shark_load_shims() -> None:
     manifest.builtin_open = builtins.open
@@ -108,3 +139,4 @@ def shark_load_shims() -> None:
     load_yirgacheffe_shim()
     load_python_shim()
     load_multiprocessing_pool_shim()
+    load_multiprocesing_process_shim()
