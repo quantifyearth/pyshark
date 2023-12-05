@@ -26,6 +26,14 @@ def load_pandas_shim() -> None:
     pd.DataFrame.to_csv = write_file_shim(pd.DataFrame.to_csv, 1)
     pd.DataFrame.to_parquet = write_file_shim(pd.DataFrame.to_csv, 1)
 
+def load_gdal_shim() -> None:
+    try:
+        from osgeo import gdal
+    except ImportError:
+        return
+    gdal.Open = read_file_shim(gdal.Open)
+    gdal.Driver.Create = write_file_shim(gdal.Driver.Create)
+
 def load_geopandas_shim() -> None:
     try:
         from geopandas import gpd
@@ -50,24 +58,32 @@ def load_yirgacheffe_shim() -> None:
     RasterLayer.empty_raster_layer = yirgacheffe_write_file_shim(RasterLayer.empty_raster_layer)
     RasterLayer.empty_raster_layer_like = yirgacheffe_write_file_shim(RasterLayer.empty_raster_layer_like)
 
+
+def python_close_shim(original_method, descriptor):
+    def python_close(*args, **kwargs):
+        manifest.close_fd(descriptor)
+        res = original_method(*args, **kwargs)
+        return res
+    return python_close
+
 def python_open_shim(original_method):
     def python_open(*args, **kwargs):
         filename = args[0]
         try:
             mode = args[1]
         except IndexError:
-            mode = kwargs.get("mode", "r")
+            mode = kwargs.get("mode", "r")        
+        fileobject = original_method(*args, **kwargs)
         if ('w' in mode) or ('x' in mode) or ('a' in mode) or ('+' in mode):
-            manifest.append_output(filename)
+            manifest.append_output(filename, fileobject.fileno())
         if ('r' in mode) or ('+' in mode):
-            manifest.append_input(filename)
-        return original_method(*args, **kwargs)
+            manifest.append_input(filename, fileobject.fileno())
+        fileobject.close = python_close_shim(fileobject.close, fileobject.fileno())
+        return fileobject
     return python_open
 
 def load_python_shim() -> None:
     builtins.open = python_open_shim(builtins.open)
-
-
 
 def worker_get_shim(original_method):
     def shark_worker_queue_get(*args, **kwargs):
@@ -135,6 +151,7 @@ def load_multiprocesing_process_shim() -> None:
 def shark_load_shims() -> None:
     manifest.builtin_open = builtins.open
     load_pandas_shim()
+    load_gdal_shim()
     load_geopandas_shim()
     load_yirgacheffe_shim()
     load_python_shim()

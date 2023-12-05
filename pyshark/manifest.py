@@ -44,6 +44,7 @@ class Manifest:
         self.inputs = set()
         self.outputs = set()
         self.lock_name = os.path.join("/tmp", "shark.lock")
+        self.fd_cache = {}
 
         if parent_process() is None:
             self.child_input_lists = shared_memory.SharedMemory(create=True, size=1024 * 1024 * 128)
@@ -59,29 +60,30 @@ class Manifest:
         path, filename = os.path.split(original_filename)
         return os.path.join(path, f".{filename}.shark")
 
-    def append_input(self, filename: str) -> None:
+    def append_input(self, filename: str, descriptor: Optional[int]=None) -> None:
         if not isinstance(filename, str):
-            return
-        if filename in [x.path for x in self.inputs]:
-            return
+            return None
         if filename == self.lock_name:
-            return
+            return None
+        fqname = os.path.abspath(os.path.join(os.getcwd(), filename))
+        if fqname in [x.path for x in self.inputs]:
+            return fqname
         hash = hashlib.sha1()
-        with self.builtin_open(filename, "rb") as f:
+        with self.builtin_open(fqname, "rb") as f:
             try:
                 while chunk := f.read(1024 * hash.block_size):
                     hash.update(chunk)
                 hashdigest = hash.hexdigest()
             except OSError:
-                print(f"Failed to hash {filename}", file=sys.stderr)
+                print(f"Failed to hash {fqname}", file=sys.stderr)
                 hashdigest = "unknown"
 
-        info = FileRef(filename, hashdigest)
-        xattr_info = xattr.xattr(filename)
+        info = FileRef(fqname, hashdigest)
+        xattr_info = xattr.xattr(fqname)
         if 'user.shark' in xattr_info:
             info.history = xattr_info['user.shark']
         else:
-            sidefilename = Manifest.side_file_name(filename)
+            sidefilename = Manifest.side_file_name(fqname)
             try:
                 with self.builtin_open(sidefilename, "r") as sidefile:
                     info.history = sidefile.read()
@@ -89,13 +91,38 @@ class Manifest:
                 pass
 
         self.inputs.add(info)
+        if descriptor is not None:
+            self.fd_cache[descriptor] = info
 
-    def append_output(self, filename: str) -> None:
+    def append_output(self, filename: str, descriptor: Optional[int]=None) -> None:
         if not isinstance(filename, str):
             return
         if filename == self.lock_name:
+            return        
+        fqname = os.path.abspath(os.path.join(os.getcwd(), filename))
+        self.outputs.add(fqname)
+
+        if descriptor is not None:
+            self.fd_cache[descriptor] = fqname
+
+    def close_fd(self, descriptor: int) -> None:
+        try:
+            ref = self.fd_cache[descriptor]
+        except KeyError:
             return
-        self.outputs.add(filename)
+        if isinstance(ref, str):
+            if ref in self.outputs:
+                manifest = json.dumps(self.generate())
+                self._save_to_file(ref, manifest)
+                self.outputs.remove(ref)
+        else:
+            assert isinstance(ref, FileRef)
+            if ref in self.inputs:
+                manifest = json.dumps(self.generate())
+                self._save_to_file(ref.path, manifest)
+                self.inputs.remove(ref)
+
+        del self.fd_cache[descriptor]
 
     def snapshot(self):
         self.stack.append((copy.copy(self.inputs), copy.copy(self.outputs)))
@@ -196,27 +223,28 @@ class Manifest:
         }
         return document
 
+    def _save_to_file(self, filename: str, manifest: str) -> None:
+        try:
+            xattr_info = xattr.xattr(filename)
+        except FileNotFoundError:
+            return
+        try:
+            xattr_info.update({
+                'user.shark': manifest.encode('utf-8')
+            })
+        except OSError:
+            # if we can't write data as xattr, drop it as a side file
+            sidefilename = Manifest.side_file_name(filename)
+            try:
+                with self.builtin_open(sidefilename, "w") as sidefile:
+                    sidefile.write(manifest)
+            except OSError:
+                print(f"Failed to write manifest for {filename}", file=sys.stderr)
+
     def save(self) -> None:
-        if len(self.outputs) < 1:
-            return;
         manifest = json.dumps(self.generate())
         for output in self.outputs:
-            try:
-                xattr_info = xattr.xattr(output)
-            except FileNotFoundError:
-                continue
-            try:
-                xattr_info.update({
-                    'user.shark': manifest.encode('utf-8')
-                })
-            except OSError:
-                # if we can't write data as xattr, drop it as a side file
-                sidefilename = Manifest.side_file_name(output)
-                try:
-                    with self.builtin_open(sidefilename, "w") as sidefile:
-                        sidefile.write(manifest)
-                except OSError:
-                    print(f"Failed to write manifest for {output}", file=sys.stderr)
+            self._save_to_file(output, manifest)
 
     def close(self) -> None:
         if self.child_input_lists is not None:
