@@ -192,9 +192,19 @@ class Manifest:
                 xattr_info = xattr.xattr(output)
             except FileNotFoundError:
                 continue
-            xattr_info.update({
-                'user.shark': manifest.encode('utf-8')
-            })
+            try:
+                xattr_info.update({
+                    'user.shark': manifest.encode('utf-8')
+                })
+            except OSError:
+                # if we can't write data as xattr, drop it as a side file
+                path, filename = os.path.split(output)
+                sidefilename = os.path.join(path, f".{filename}.shark")
+                try:
+                    with self.builtin_open(sidefilename, "w") as sidefile:
+                        sidefile.write(manifest)
+                except OSError:
+                    print(f"Failed to write manifest for {output}", file=sys.stderr)
 
     def close(self) -> None:
         if self.child_input_lists is not None:
