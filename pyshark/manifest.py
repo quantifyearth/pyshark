@@ -81,7 +81,7 @@ class Manifest:
         info = FileRef(fqname, hashdigest)
         xattr_info = xattr.xattr(fqname)
         if 'user.shark' in xattr_info:
-            info.history = xattr_info['user.shark']
+            info.history = str(xattr_info['user.shark'])
         else:
             sidefilename = Manifest.side_file_name(fqname)
             try:
@@ -115,13 +115,6 @@ class Manifest:
                 manifest = json.dumps(self.generate())
                 self._save_to_file(ref, manifest)
                 self.outputs.remove(ref)
-        else:
-            assert isinstance(ref, FileRef)
-            if ref in self.inputs:
-                manifest = json.dumps(self.generate())
-                self._save_to_file(ref.path, manifest)
-                self.inputs.remove(ref)
-
         del self.fd_cache[descriptor]
 
     def snapshot(self):
