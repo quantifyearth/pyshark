@@ -36,6 +36,7 @@ class FileRef:
 
 
 class Manifest:
+
     def __init__(self):
         # on linux this is called once in the parent process and then copied
         # over via fork/exec
@@ -52,6 +53,11 @@ class Manifest:
         self.git = Manifest.get_git_status()
 
         self.stack = []
+
+    @staticmethod
+    def side_file_name(original_filename: str) -> str:
+        path, filename = os.path.split(original_filename)
+        return os.path.join(path, f".{filename}.shark")
 
     def append_input(self, filename: str) -> None:
         if not isinstance(filename, str):
@@ -74,6 +80,13 @@ class Manifest:
         xattr_info = xattr.xattr(filename)
         if 'user.shark' in xattr_info:
             info.history = xattr_info['user.shark']
+        else:
+            sidefilename = Manifest.side_file_name(filename)
+            try:
+                with self.builtin_open(sidefilename, "r") as sidefile:
+                    info.history = sidefile.read()
+            except OSError:
+                pass
 
         self.inputs.add(info)
 
@@ -198,8 +211,7 @@ class Manifest:
                 })
             except OSError:
                 # if we can't write data as xattr, drop it as a side file
-                path, filename = os.path.split(output)
-                sidefilename = os.path.join(path, f".{filename}.shark")
+                sidefilename = Manifest.side_file_name(output)
                 try:
                     with self.builtin_open(sidefilename, "w") as sidefile:
                         sidefile.write(manifest)
