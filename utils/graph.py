@@ -5,7 +5,11 @@ import sys
 import graphviz
 import xattr
 
-def plot(upstream, inputs, dot):
+def plot(upstream, program, inputs, dot):
+
+    dot.node(program+upstream, program, shape="box")
+    dot.edge(program+upstream, upstream)
+
     for input in inputs:
         try:
             _, name = os.path.split(input["path"])
@@ -13,11 +17,11 @@ def plot(upstream, inputs, dot):
             name = input["url"]
         node_id = str(name.__hash__())
         dot.node(node_id, name)
-        dot.edge(node_id, upstream)
+        dot.edge(node_id, program+upstream)
 
         try:
             history = input["history"]
-            plot(node_id, history["inputs"], dot)
+            plot(node_id, history["args"][0], history["inputs"], dot)
         except KeyError:
             pass
 
@@ -46,7 +50,8 @@ def main() -> None:
         return
 
     inputs = history["inputs"]
-    plot(source, inputs, dot)
+    program = history["args"][0]
+    plot(source, program, inputs, dot)
 
     dot.render("/tmp/blah.gv")
 
