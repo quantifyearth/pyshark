@@ -171,12 +171,31 @@ def os__exit_shim(original_method) -> None:
 def load_os__exit_shim() -> None:
     os._exit = os__exit_shim(os._exit)
 
+
+def requests_get_shim(original_method):
+    def shark_get_shim(*args, **kwargs):
+        try:
+            url = args[0]
+            manifest.append_url_input(url)
+        except IndexError:
+            pass
+        return original_method(*args, **kwargs)
+    return shark_get_shim
+
+def load_requests_shim() -> None:
+    try:
+        import requests
+    except ImportError:
+        return
+    requests.get = requests_get_shim(requests.get)
+
 def shark_load_shims() -> None:
     manifest.builtin_open = builtins.open
     load_pandas_shim()
     load_gdal_shim()
     load_geopandas_shim()
     load_yirgacheffe_shim()
+    load_requests_shim()
     load_python_shim()
     load_multiprocessing_pool_shim()
     load_multiprocesing_process_shim()

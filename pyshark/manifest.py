@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from multiprocessing import parent_process, shared_memory
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import git
 import locket
@@ -34,6 +34,26 @@ class FileRef:
     def from_dict(cls, info: Dict[str,str]) -> "FileRef":
         return FileRef(info["path"], info["sha"], info.get("history", None))
 
+@dataclass
+class DownloadRef:
+    url: str
+
+    def __hash__(self) -> int:
+        return self.url.__hash__()
+    
+    def to_dict(self):
+        res = {"url": self.url}
+        return res
+    
+    @classmethod
+    def from_dict(cls, info: Dict[str,str]) -> "DownloadRef":
+        return DownloadRef(info["url"])
+
+def info_to_ref(info: Dict[str,str]) -> Union[FileRef,DownloadRef]:
+    if "url" in info:
+        return DownloadRef(info)
+    else:
+        return FileRef(info)
 
 class Manifest:
 
@@ -62,37 +82,60 @@ class Manifest:
 
     def append_input(self, filename: str, descriptor: Optional[int]=None) -> None:
         if not isinstance(filename, str):
-            return None
+            return
         if filename == self.lock_name:
-            return None
+            return
         fqname = os.path.abspath(os.path.join(os.getcwd(), filename))
-        if fqname in [x.path for x in self.inputs]:
-            return fqname
-        hash = hashlib.sha1()
-        with self.builtin_open(fqname, "rb") as f:
-            try:
-                while chunk := f.read(1024 * hash.block_size):
-                    hash.update(chunk)
-                hashdigest = hash.hexdigest()
-            except OSError:
-                print(f"Failed to hash {fqname}", file=sys.stderr)
-                hashdigest = "unknown"
-
-        info = FileRef(fqname, hashdigest)
+        if fqname in [x.path for x in self.inputs if isinstance(x, FileRef)]:
+            return
+        
+        # Load the history data, and if it looks intact, trust the hash
+        # from there, as otherwise we will spend a lot of time rehashing
+        # files
+        history = None
+        hashdigest = None
         xattr_info = xattr.xattr(fqname)
         if 'user.shark' in xattr_info:
-            info.history = json.loads(xattr_info['user.shark'].decode("utf-8"))
+            history = json.loads(xattr_info['user.shark'].decode("utf-8"))
         else:
             sidefilename = Manifest.side_file_name(fqname)
             try:
                 with self.builtin_open(sidefilename, "r") as sidefile:
-                    info.history = json.loads(sidefile.read())
+                    history = json.loads(sidefile.read())
             except OSError:
                 pass
+        if history is not None:
+            # TODO:
+            # * Timestamp checks
+            # * Read only FS?
+            outputs = history.get("outputs", [])
+            if len(outputs) == 1:
+                try:
+                    hashdigest = outputs[0]["hash"]
+                except KeyError:
+                    pass
+        
+        if hashdigest is None:
+            hash = hashlib.sha1()
+            with self.builtin_open(fqname, "rb") as f:
+                try:
+                    while chunk := f.read(1024 * hash.block_size):
+                        hash.update(chunk)
+                    hashdigest = hash.hexdigest()
+                except OSError:
+                    print(f"Failed to hash {fqname}", file=sys.stderr)
+                    hashdigest = "unknown"
+
+        info = FileRef(fqname, hashdigest, history)
 
         self.inputs.add(info)
         if descriptor is not None:
             self.fd_cache[descriptor] = info
+
+    def append_url_input(self, url: str) -> None:
+        if not isinstance(url, str):
+            return
+        self.inputs.add(DownloadRef(url))
 
     def append_output(self, filename: str, descriptor: Optional[int]=None) -> None:
         if not isinstance(filename, str):
@@ -133,7 +176,7 @@ class Manifest:
                 currentlist = json.loads(raw.decode("utf-8"))
             else:
                 currentlist = []
-            current = set([FileRef.from_dict(x) for x in currentlist])
+            current = set([info_to_ref(x) for x in currentlist])
 
             current = current.union(self.inputs)
             raw = json.dumps([x.to_dict() for x in current]).encode("utf-8")
@@ -148,7 +191,7 @@ class Manifest:
                 if length > 0:
                     raw = bytes(buffer[8:length + 8])
                     currentlist = json.loads(raw.decode("utf-8"))
-                    current = set([FileRef.from_dict(x) for x in currentlist])
+                    current = set([info_to_ref(x) for x in currentlist])
                     self.inputs = self.inputs.union(current)
 
     @staticmethod
