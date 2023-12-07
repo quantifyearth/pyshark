@@ -40,11 +40,11 @@ class DownloadRef:
 
     def __hash__(self) -> int:
         return self.url.__hash__()
-    
+
     def to_dict(self):
         res = {"url": self.url}
         return res
-    
+
     @classmethod
     def from_dict(cls, info: Dict[str,str]) -> "DownloadRef":
         return DownloadRef(info["url"])
@@ -88,7 +88,7 @@ class Manifest:
         fqname = os.path.abspath(os.path.join(os.getcwd(), filename))
         if fqname in [x.path for x in self.inputs if isinstance(x, FileRef)]:
             return
-        
+
         # Load the history data, and if it looks intact, trust the hash
         # from there, as otherwise we will spend a lot of time rehashing
         # files
@@ -114,7 +114,7 @@ class Manifest:
                     hashdigest = outputs[0]["hash"]
                 except KeyError:
                     pass
-        
+
         if hashdigest is None:
             hash = hashlib.sha1()
             with self.builtin_open(fqname, "rb") as f:
@@ -141,7 +141,7 @@ class Manifest:
         if not isinstance(filename, str):
             return
         if filename == self.lock_name:
-            return        
+            return
         fqname = os.path.abspath(os.path.join(os.getcwd(), filename))
         self.outputs.add(fqname)
 
@@ -247,7 +247,7 @@ class Manifest:
             outputhashed.append({'path': filename, 'sha': hash.hexdigest()})
 
         document = {
-            "args": sys.argv[1:],
+            "args": sys.argv,
             "start": self.start.isoformat(),
             "end": datetime.now(timezone.utc).isoformat(),
             "env": self.get_context(),
