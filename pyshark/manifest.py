@@ -51,9 +51,8 @@ class DownloadRef:
 
 def info_to_ref(info: Dict[str,str]) -> Union[FileRef,DownloadRef]:
     if "url" in info:
-        return DownloadRef(info)
-    else:
-        return FileRef(info)
+        return DownloadRef.from_dict(info)
+    return FileRef.from_dict(info)
 
 class Manifest:
 
@@ -155,8 +154,7 @@ class Manifest:
             return
         if isinstance(ref, str):
             if ref in self.outputs:
-                manifest = json.dumps(self.generate())
-                self._save_to_file(ref, manifest)
+                self._save_to_file(ref, json.dumps(self.generate()))
                 self.outputs.remove(ref)
         del self.fd_cache[descriptor]
 
@@ -176,7 +174,7 @@ class Manifest:
                 currentlist = json.loads(raw.decode("utf-8"))
             else:
                 currentlist = []
-            current = set([info_to_ref(x) for x in currentlist])
+            current = {info_to_ref(x) for x in currentlist}
 
             current = current.union(self.inputs)
             raw = json.dumps([x.to_dict() for x in current]).encode("utf-8")
@@ -191,7 +189,7 @@ class Manifest:
                 if length > 0:
                     raw = bytes(buffer[8:length + 8])
                     currentlist = json.loads(raw.decode("utf-8"))
-                    current = set([info_to_ref(x) for x in currentlist])
+                    current = {info_to_ref(x) for x in currentlist}
                     self.inputs = self.inputs.union(current)
 
     @staticmethod
@@ -259,28 +257,28 @@ class Manifest:
         }
         return document
 
-    def _save_to_file(self, filename: str, manifest: str) -> None:
+    def _save_to_file(self, filename: str, manifest_data: str) -> None:
         try:
             xattr_info = xattr.xattr(filename)
         except FileNotFoundError:
             return
         try:
             xattr_info.update({
-                'user.shark': manifest.encode('utf-8')
+                'user.shark': manifest_data.encode('utf-8')
             })
         except OSError:
             # if we can't write data as xattr, drop it as a side file
             sidefilename = Manifest.side_file_name(filename)
             try:
                 with self.builtin_open(sidefilename, "w") as sidefile:
-                    sidefile.write(manifest)
+                    sidefile.write(manifest_data)
             except OSError:
                 print(f"Failed to write manifest for {filename}", file=sys.stderr)
 
     def save(self) -> None:
-        manifest = json.dumps(self.generate())
+        manifest_data = json.dumps(self.generate())
         for output in self.outputs:
-            self._save_to_file(output, manifest)
+            self._save_to_file(output, manifest_data)
 
     def close(self) -> None:
         if self.child_input_lists is not None:

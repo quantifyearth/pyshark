@@ -1,4 +1,4 @@
 [FORMAT]
 max-line-length=120
 
-disable=C0114, C0115, C0116, C0415, W0622
+disable=C0114, C0115, C0116, C0415, W0622, W0511, R0902, R0912

@@ -1,6 +1,6 @@
 import builtins
-from multiprocessing import pool, context, queues, managers, parent_process
 import os
+from multiprocessing import pool, context, parent_process
 
 from .manifest import manifest
 
@@ -72,7 +72,7 @@ def python_open_shim(original_method):
         try:
             mode = args[1]
         except IndexError:
-            mode = kwargs.get("mode", "r")        
+            mode = kwargs.get("mode", "r")
         fileobject = original_method(*args, **kwargs)
         if ('w' in mode) or ('x' in mode) or ('a' in mode) or ('+' in mode):
             manifest.append_output(filename, fileobject.fileno())
@@ -133,7 +133,7 @@ def main_process_queue_put_shim(original_method):
 
 def process_start_shim(original_method):
     def shark_start_shim(*args, **kwargs):
-        caller_args = args[0]._args
+        caller_args = args[0]._args  # pylint: disable = W0212
         # now we are post fork in parent - child doesn't
         # return from this call
         for arg in caller_args:
