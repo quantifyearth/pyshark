@@ -1,9 +1,12 @@
 import json
 import os
 import sys
+from urllib.parse import urlparse
 
 import graphviz
 import xattr
+
+domain_nodes = {}
 
 def plot(upstream, program, inputs, dot):
 
@@ -15,7 +18,16 @@ def plot(upstream, program, inputs, dot):
             _, name = os.path.split(input["path"])
         except KeyError:
             name = input["url"]
+            parts = urlparse(name)
+            try:
+                l = domain_nodes[parts.netloc]
+            except KeyError:
+                l = []
+            l.append(str(name.__hash__()))
+            domain_nodes[parts.netloc] = l
+
         node_id = str(name.__hash__())
+
         dot.node(node_id, name)
         dot.edge(node_id, program+upstream)
 
@@ -52,6 +64,14 @@ def main() -> None:
     inputs = history["inputs"]
     program = history["args"][0]
     plot(source, program, inputs, dot)
+
+    for domain in domain_nodes:
+        nodes = domain_nodes[domain]
+        with dot.subgraph(name=f"cluster_{domain}") as cluster:
+            cluster.attr(label=domain)
+            cluster.attr(style="dotted")
+            for node in nodes:
+                cluster.node(node)
 
     dot.render("/tmp/blah.gv")
 
