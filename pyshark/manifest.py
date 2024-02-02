@@ -194,10 +194,17 @@ class Manifest:
 
     @staticmethod
     def get_python_env() -> Dict[str,Any]:
-        return {
+        envdata = {
             "version": sys.version,
             "packages": {p.project_name:p.version for p in pkg_resources.working_set}, # pylint: disable=E1133
         }
+
+        # extract OCI data if present
+        for key in os.environ:
+            if key.startswith("ORG_OPENCONTAINERS"):
+                envdata[key] = os.environ[key]
+
+        return envdata
 
     @staticmethod
     def get_platform() -> Dict[str,str]:
