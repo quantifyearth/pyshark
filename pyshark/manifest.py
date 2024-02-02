@@ -194,17 +194,10 @@ class Manifest:
 
     @staticmethod
     def get_python_env() -> Dict[str,Any]:
-        envdata = {
+        return {
             "version": sys.version,
             "packages": {p.project_name:p.version for p in pkg_resources.working_set}, # pylint: disable=E1133
         }
-
-        # extract OCI data if present
-        for key in os.environ:
-            if key.startswith("ORG_OPENCONTAINERS"):
-                envdata[key] = os.environ[key]
-
-        return envdata
 
     @staticmethod
     def get_platform() -> Dict[str,str]:
@@ -235,10 +228,16 @@ class Manifest:
 
     @staticmethod
     def get_context() -> Dict[str,str]:
-        return {
+        envdata = {
             "user": os.environ.get("USER", "unknown"),
             "host": platform.uname().node,
         }
+
+        container_info = {key:os.environ[key] for key in os.environ if key.startswith("ORG_OPENCONTAINERS")}
+        if container_info:
+            envdata["container"] = container_info
+
+        return envdata
 
     def generate(self) -> Dict:
         # this is unsafe! we don't really know that the files
