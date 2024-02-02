@@ -17,18 +17,19 @@ def plot(upstream, program, inputs, dot):
         try:
             _, name = os.path.split(input["path"])
         except KeyError:
-            name = input["url"]
-            parts = urlparse(name)
+            parts = urlparse(input["url"])
+            name = parts.path
+            key = f"{parts.scheme}://{parts.netloc}"
             try:
-                l = domain_nodes[parts.netloc]
+                l = domain_nodes[key]
             except KeyError:
                 l = []
             l.append(str(name.__hash__()))
-            domain_nodes[parts.netloc] = l
+            domain_nodes[key] = l
 
         node_id = str(name.__hash__())
 
-        dot.node(node_id, name)
+        dot.node(node_id, name, shape="note")
         dot.edge(node_id, program+upstream)
 
         try:
@@ -44,7 +45,7 @@ def main() -> None:
     dot = graphviz.Digraph(comment=source)
 
     _, node_filename = os.path.split(source)
-    dot.node(source, node_filename)
+    dot.node(source, node_filename, shape="note")
 
     history = None
     xattr_info = xattr.xattr(source)
