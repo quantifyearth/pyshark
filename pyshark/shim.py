@@ -15,10 +15,10 @@ def read_file_shim(original_method, filename_arg_index=0):
     return shark_read_file
 
 def write_file_shim(original_method, filename_arg_index=0):
-    def shark_read_file(*args, **kwargs):
+    def shark_write_file(*args, **kwargs):
         manifest.append_output(args[filename_arg_index])
         return original_method(*args, **kwargs)
-    return shark_read_file
+    return shark_write_file
 
 def load_pandas_shim() -> None:
     try:
@@ -44,6 +44,7 @@ def load_geopandas_shim() -> None:
     except ImportError:
         return
     gpd.read_file = read_file_shim(gpd.read_file)
+    gpd.GeoDataFrame.to_file = write_file_shim(gpd.GeoDataFrame.to_file, 1)
 
 def yirgacheffe_write_file_shim(original_method):
     def yirgacheffe_empty_raster(*args, **kwargs):
