@@ -1,7 +1,7 @@
 import atexit
-import os
 import platform
 import signal
+import warnings
 
 from pkg_resources import get_distribution, DistributionNotFound
 
@@ -18,7 +18,7 @@ def shark_exit_handler(_sig=None, _frame=None):
     manifest.close()
 
 if platform.uname().system != "Linux":
-    raise ImportWarning("Multiprocessing support only works on linux, may cause bad behaviour otherwhere.")
+    warnings.warn("Multiprocessing support only works on linux, may cause bad behaviour otherwhere.")
 
 atexit.register(shark_exit_handler)
 signal.signal(signal.SIGTERM, shark_exit_handler)

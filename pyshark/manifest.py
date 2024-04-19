@@ -7,7 +7,11 @@ import struct
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from multiprocessing import parent_process, shared_memory
+try:
+    from multiprocessing import parent_process, shared_memory
+    MULTIPROCESSING = True
+except ImportError:
+    MULTIPROCESSING = False
 from typing import Any, Dict, Optional, Union
 
 import git

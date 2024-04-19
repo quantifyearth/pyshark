@@ -1,6 +1,10 @@
 import builtins
 import os
-from multiprocessing import pool, context, parent_process
+try:
+    from multiprocessing import pool, context, parent_process
+    MULTIPROCESSING = True
+except ImportError:
+    MULTIPROCESSING = False
 
 from .manifest import manifest
 
@@ -197,6 +201,7 @@ def shark_load_shims() -> None:
     load_yirgacheffe_shim()
     load_requests_shim()
     load_python_shim()
-    load_multiprocessing_pool_shim()
-    load_multiprocesing_process_shim()
+    if MULTIPROCESSING:
+        load_multiprocessing_pool_shim()
+        load_multiprocesing_process_shim()
     load_os__exit_shim()
